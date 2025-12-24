@@ -1,0 +1,424 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ post.title }} | MONOCHROME NEWS{% endblock %}
+
+{% block extra_head %}
+<script src="{% static 'js/auth.js' %}"></script>
+<script src="{% static 'js/posts.js' %}"></script>
+
+{% endblock %}
+
+{% block content %}
+<section class="hero hero-medium">
+    <div class="video-container">
+        <div style="width:100%; height:100%; background: linear-gradient(45deg, #000000 0%, #222222 100%);">
+        </div>
+    </div>
+    
+    <div class="video-overlay"></div>
+    
+    <div class="hero-content">
+        <h1 class="hero-title">{{ post.title|truncatechars:50 }}</h1>
+        <p>Опубликовано {{ post.created_at|date:"d.m.Y" }}</p>
+    </div>
+</section>
+
+<section class="products">
+    <div class="container">
+        <div style="max-width: 800px; margin: 0 auto;">
+            <div class="author-info">
+                {% if post.author.profile.avatar %}
+                <img src="{{ post.author.profile.avatar.url }}" alt="{{ post.author.username }}" class="author-avatar">
+                {% else %}
+                <div class="author-avatar" style="background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-user" style="font-size: 24px; color: rgba(255,255,255,0.3);"></i>
+                </div>
+                {% endif %}
+                
+                <div class="author-details">
+                    <div class="author-name">
+                        <a href="{% url 'profile' username=post.author.username %}">
+                            {{ post.author.username }}
+                        </a>
+                        {% if post.author.profile.is_online %}
+                        <span style="color: #4CAF50; font-size: 0.8rem; margin-left: 10px;">
+                            <i class="fas fa-circle"></i> Онлайн
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="post-date">
+                        <i class="fas fa-calendar"></i> {{ post.created_at|date:"d.m.Y H:i" }}
+                        {% if post.updated_at != post.created_at %}
+                        <span style="margin-left: 15px; color: rgba(255,255,255,0.4);">
+                            <i class="fas fa-edit"></i> Обновлено {{ post.updated_at|date:"d.m.Y H:i" }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <a href="{% url 'profile' username=post.author.username %}" class="view-profile-btn">
+                    <i class="fas fa-user"></i> Профиль
+                </a>
+            </div>
+
+
+            {% if user.is_authenticated %}
+                {% if user == post.author or user.is_staff %}
+                <div class="post-actions">
+
+                    <button class="btn-delete" onclick="quickDeletePost({{ post.id }})">
+                        <i class="fas fa-trash"></i> Удалить новость
+                    </button>
+                </div>
+                {% endif %}
+            {% endif %}
+
+
+            {% if post.image %}
+            <div class="post-image">
+                <img src="{{ post.image.url }}" alt="{{ post.title }}">
+            </div>
+            {% endif %}
+
+
+            <div class="post-content">
+                {{ post.content|linebreaks }}
+            </div>
+
+
+            <div class="reaction-buttons" data-post-id="{{ post.id }}">
+                <button class="reaction-btn like-btn {% if user_reaction == True %}active{% endif %}" 
+                        data-reaction="like">
+                    <i class="fas fa-thumbs-up"></i>
+                    <span class="reaction-count">{{ likes_count }}</span>
+                </button>
+                
+                <button class="reaction-btn dislike-btn {% if user_reaction == False %}active{% endif %}" 
+                        data-reaction="dislike">
+                    <i class="fas fa-thumbs-down"></i>
+                    <span class="reaction-count">{{ dislikes_count }}</span>
+                </button>
+            </div>
+
+            <div class="comments-section" style="margin-top: 40px;">
+                <h3>Комментарии (<span id="total-comments">{{ post.comments_count }}</span>)</h3>
+
+                <div class="comment-form" style="margin-bottom: 30px;">
+                    <form id="comment-form">
+                        {% csrf_token %}
+                        <textarea id="comment-content" 
+                                  placeholder="Напишите ваш комментарий..." 
+                                  style="width: 100%; min-height: 100px; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 4px; resize: none; font-family: inherit;"></textarea>
+                        <div style="text-align: right; margin-top: 10px;">
+                            <button type="submit" class="btn btn-accent" style="padding: 10px 25px;">
+                                <i class="fas fa-paper-plane"></i> Отправить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="comments-list">
+                    {% for comment in comments %}
+                    <div class="comment">
+                        <div class="comment-header">
+                            <span class="comment-author">
+                                <a href="{% url 'profile' username=comment.user.username %}" style="color: inherit; text-decoration: none;">
+                                    {{ comment.user.username }}
+                                </a>
+                            </span>
+                            <span class="comment-date">{{ comment.created_at|date:"d.m.Y H:i" }}</span>
+                        </div>
+                        <div class="comment-content">
+                            {{ comment.content }}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="no-comments" style="text-align: center; padding: 40px; color: rgba(255,255,255,0.5);">
+                        <i class="fas fa-comments" style="font-size: 3rem; margin-bottom: 15px; display: block; color: rgba(255,255,255,0.1);"></i>
+                        <p>Пока нет комментариев. Будьте первым!</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<script>
+
+if (window._messageHandlersCleaned) {
+    location.reload(); 
+}
+window._messageHandlersCleaned = true;
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Detail page loaded - clean version');
+    
+
+    window.showMonochromeMessage = function(text, type = 'info', duration = 3000) {
+        document.querySelectorAll('.monochrome-message').forEach(msg => {
+            msg.style.animation = 'slideOutRight 0.3s ease';
+            setTimeout(() => msg.remove(), 300);
+        });
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `monochrome-message monochrome-message-${type}`;
+        messageDiv.textContent = text;
+        messageDiv.style.cssText = `
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            padding: 15px 20px;
+            background: ${type === 'success' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.95)'};
+            color: ${type === 'success' ? '#000' : '#fff'};
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 0;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: slideInRight 0.3s ease;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            backdrop-filter: blur(10px);
+            pointer-events: none;
+        `;
+        
+        document.body.appendChild(messageDiv);
+        
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.style.animation = 'slideOutRight 0.3s ease';
+                setTimeout(() => {
+                    if (messageDiv.parentNode) messageDiv.remove();
+                }, 300);
+            }
+        }, duration);
+    };
+    
+    document.querySelectorAll('.reaction-btn').forEach(btn => {
+        btn.replaceWith(btn.cloneNode(true));
+    });
+    
+    document.querySelectorAll('.reaction-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const isAuthenticated = window.authService && window.authService.isAuthenticated();
+            if (!isAuthenticated) {
+                showMonochromeMessage('Для оценки необходимо войти в систему', 'error');
+                return;
+            }
+            
+            const reaction = this.dataset.reaction;
+            const postId = this.closest('.reaction-buttons').dataset.postId;
+            const originalHTML = this.innerHTML;
+            
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            this.disabled = true;
+            
+            try {
+                const response = await fetch(`/posts/${postId}/like/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${window.authService.accessToken}`,
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({ reaction: reaction })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    document.querySelector('.like-btn .reaction-count').textContent = data.likes;
+                    document.querySelector('.dislike-btn .reaction-count').textContent = data.dislikes;
+                    document.querySelectorAll('.reaction-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    if (data.liked) {
+                        document.querySelector('.like-btn').classList.add('active');
+                    } else if (data.disliked) {
+                        document.querySelector('.dislike-btn').classList.add('active');
+                    }
+                    
+                    showMonochromeMessage('Спасибо за вашу оценку!', 'success');
+                } else {
+                    showMonochromeMessage(data.error || 'Ошибка при оценке', 'error');
+                }
+            } catch (error) {
+                showMonochromeMessage('Ошибка сети', 'error');
+            } finally {
+                this.innerHTML = originalHTML;
+                this.disabled = false;
+            }
+        });
+    });
+    
+    const commentForm = document.getElementById('comment-form');
+    if (commentForm) {
+        commentForm.replaceWith(commentForm.cloneNode(true));
+        const newForm = document.getElementById('comment-form');
+        
+        newForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const isAuthenticated = window.authService && window.authService.isAuthenticated();
+            if (!isAuthenticated) {
+                showMonochromeMessage('Для комментирования необходимо войти в систему', 'error');
+                return;
+            }
+            
+            const postId = document.querySelector('.reaction-buttons').dataset.postId;
+            const contentInput = document.getElementById('comment-content');
+            const content = contentInput.value.trim();
+            
+            if (!content) {
+                showMonochromeMessage('Введите текст комментария', 'error');
+                return;
+            }
+            
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalHTML = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`/posts/${postId}/comment/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${window.authService.accessToken}`,
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({ content: content })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    contentInput.value = '';
+                    
+                    const commentsList = document.getElementById('comments-list');
+                    const noComments = commentsList.querySelector('.no-comments');
+                    
+                    if (noComments) noComments.remove();
+                    
+                    commentsList.insertAdjacentHTML('afterbegin', data.comment_html);
+                    
+                    document.getElementById('total-comments').textContent = data.comments_count;
+                    
+                    showMonochromeMessage('Комментарий добавлен!', 'success');
+                } else {
+                    showMonochromeMessage(data.error || 'Ошибка при добавлении комментария', 'error');
+                }
+            } catch (error) {
+                showMonochromeMessage('Ошибка сети', 'error');
+            } finally {
+                submitBtn.innerHTML = originalHTML;
+                submitBtn.disabled = false;
+            }
+        });
+        
+        if (!window.authService || !window.authService.isAuthenticated()) {
+            const textarea = newForm.querySelector('textarea');
+            const submitBtn = newForm.querySelector('button[type="submit"]');
+            
+            if (textarea) {
+                textarea.placeholder = 'Войдите чтобы оставить комментарий';
+                textarea.disabled = true;
+            }
+            
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-lock"></i> Войдите чтобы комментировать';
+            }
+        }
+    }
+    
+    const deleteBtn = document.querySelector('.btn-delete');
+    if (deleteBtn) {
+        deleteBtn.replaceWith(deleteBtn.cloneNode(true));
+        const newDeleteBtn = document.querySelector('.btn-delete');
+        
+        newDeleteBtn.addEventListener('click', async function() {
+            const postId = document.querySelector('.reaction-buttons').dataset.postId;
+            
+            if (!confirm('\nВы уверены, что хотите удалить эту новость?')) {
+                return;
+            }
+            
+            const isAuthenticated = window.authService && window.authService.isAuthenticated();
+            if (!isAuthenticated) {
+                showMonochromeMessage('Для удаления необходимо войти в систему', 'error');
+                return;
+            }
+            
+            const originalHTML = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Удаление...';
+            this.disabled = true;
+            
+            try {
+                const response = await fetch(`/posts/${postId}/api/delete/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${window.authService.accessToken}`,
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showMonochromeMessage(data.message || 'Новость успешно удалена', 'success');
+                    setTimeout(() => {
+                        window.location.href = data.redirect_url || '/posts/';
+                    }, 1500);
+                } else {
+                    showMonochromeMessage(data.error || 'Ошибка при удалении', 'error');
+                    this.innerHTML = originalHTML;
+                    this.disabled = false;
+                }
+            } catch (error) {
+                showMonochromeMessage('Ошибка сети', 'error');
+                this.innerHTML = originalHTML;
+                this.disabled = false;
+            }
+        });
+    }
+    
+    if (!document.querySelector('#clean-styles')) {
+        const style = document.createElement('style');
+        style.id = 'clean-styles';
+        style.textContent = `
+            @keyframes slideInRight {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOutRight {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .comment {
+                animation: fadeIn 0.5s ease;
+            }
+            .reaction-btn.active {
+                animation: pulse 0.3s ease;
+            }
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Создание новости | MONOCHROME NEWS{% endblock %}
+
+{% block extra_head %}
+<script src="{% static 'js/auth.js' %}"></script>
+
+{% endblock %}
+
+{% block content %}
+<section class="hero hero-medium">
+    <div class="video-container">
+        <div style="width:100%; height:100%; background: linear-gradient(45deg, #000000 0%, #222222 100%);">
+        </div>
+    </div>
+    
+    <div class="video-overlay"></div>
+    
+    <div class="hero-content">
+        <h1 class="glitch" data-text="Создание новости">Создание новости</h1>
+    </div>
+</section>
+
+<section class="products">
+    <div class="container">
+        <div class="form-container">
+            <h2 style="text-align: center; margin-bottom: 30px;">НОВАЯ ПУБЛИКАЦИЯ</h2>
+            
+            <form id="create-post-form" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label for="id_title">ЗАГОЛОВОК</label>
+                    {{ form.title }}
+                    {% if form.title.errors %}
+                        <div class="form-errors">
+                            {% for error in form.title.errors %}
+                                <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_content">СОДЕРЖАНИЕ</label>
+                    {{ form.content }}
+                    {% if form.content.errors %}
+                        <div class="form-errors">
+                            {% for error in form.content.errors %}
+                                <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_image">ИЗОБРАЖЕНИЕ</label>
+                    <div style="margin-top: 10px;">
+                        {{ form.image }}
+                    </div>
+                    {% if form.image.errors %}
+                        <div class="form-errors">
+                            {% for error in form.image.errors %}
+                                <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div id="form-error" class="form-errors" style="display: none;"></div>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                    <button type="submit" class="btn-login">ОПУБЛИКОВАТЬ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (!window.authService || !window.authService.isAuthenticated()) {
+        const formContainer = document.querySelector('.form-container');
+        formContainer.innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+                <div style="font-size: 4rem; color: rgba(255,255,255,0.1); margin-bottom: 20px;">
+                    <i class="fas fa-lock"></i>
+                </div>
+                <h2>Требуется авторизация</h2>
+                <p style="color: #888; margin: 20px 0;">
+                    Для создания новости необходимо войти в систему
+                </p>
+                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 30px;">
+                    <a href="/login/" class="btn btn-accent">Войти</a>
+                    <a href="/register/" class="btn btn-outline">Зарегистрироваться</a>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    const createForm = document.getElementById('create-post-form');
+    if (createForm) {
+        const newForm = createForm.cloneNode(true);
+        createForm.parentNode.replaceChild(newForm, createForm);
+
+        const form = document.getElementById('create-post-form');
+        
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('Form submitted');
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            const accessToken = window.authService.accessToken;
+            if (!accessToken) {
+                alert('Ошибка авторизации. Пожалуйста, войдите снова.');
+                window.location.href = '/login/';
+                return;
+            }
+            
+            const errorDiv = document.getElementById('form-error');
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+            
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ПУБЛИКАЦИЯ...';
+            submitBtn.disabled = true;
+            
+            try {
+                const formData = new FormData(form);
+                console.log('FormData entries:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(key, value);
+                }
+                
+                const response = await fetch('/posts/api/create/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'X-CSRFToken': csrfToken,
+                    },
+                    body: formData
+                });
+                
+                console.log('Response status:', response.status);
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (response.ok && data.success) {
+                    alert(data.message || 'Новость успешно создана!');
+                    window.location.href = data.redirect_url;
+                } else {
+                    let errorMessage = data.message || data.error || 'Ошибка при создании новости';
+                    
+                    if (data.errors) {
+                        errorMessage = '';
+                        for (const field in data.errors) {
+                            errorMessage += `${field}: ${data.errors[field].join(', ')}\n`;
+                        }
+                    }
+                    
+                    errorDiv.textContent = errorMessage;
+                    errorDiv.style.display = 'block';
+                    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+           
+            } finally {
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
